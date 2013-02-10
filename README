@@ -1,0 +1,6 @@
+Installing:
+    go install pool
+
+Compile and run the example:
+    go run example/pool_example.go
+
