@@ -35,6 +35,8 @@ func main() {
 	for i:=float64(0); i<num_jobs; i++ {
 		mypool.Add(worker, i)
 	}
+	status := mypool.Status()
+	log.Println(status.Submitted, "submitted jobs,", status.Running, "running,", status.Completed, "completed.")
 	mypool.Wait()
 	sum := float64(0)
 	completed_jobs := mypool.Results()

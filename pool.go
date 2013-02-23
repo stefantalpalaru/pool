@@ -22,18 +22,29 @@ type Job struct {
 	Err error
 }
 
+// stats is a structure holding statistical data about the pool
+type stats struct {
+	Submitted int
+	Running int
+	Completed int
+}
+
 // Pool is the main data structure.
 type Pool struct {
+	started bool
 	num_workers int
 	job_pipe chan *Job
 	done_pipe chan *Job
 	add_pipe chan *Job
 	result_pipe chan *Job
 	jobs_ready_to_run []*Job
-	jobs_running int
+	num_jobs_submitted int
+	num_jobs_running int
+	num_jobs_completed int
 	jobs_completed []*Job
 	interval time.Duration // for sleeping, in ms
 	working_pipe chan bool
+	stats_pipe chan stats
 }
 
 // subworker catches any panic while running the job.
@@ -69,6 +80,7 @@ func NewPool(workers int) (pool *Pool) {
 	pool.jobs_ready_to_run = make([]*Job, 0)
 	pool.jobs_completed = make([]*Job, 0)
 	pool.working_pipe = make(chan bool)
+	pool.stats_pipe = make(chan stats)
 	pool.interval = 1
 	for i:=0; i<workers; i++ {
 		go pool.worker(i)
@@ -78,10 +90,12 @@ func NewPool(workers int) (pool *Pool) {
 
 // supervisor feeds jobs to workers and keeps track of them.
 func (pool *Pool) supervisor() {
+	pool.started = true
 	for {
 		select {
 		case job := <-pool.add_pipe:
 			pool.jobs_ready_to_run = append(pool.jobs_ready_to_run, job)
+			pool.num_jobs_submitted++
 		default:
 		}
 
@@ -89,23 +103,24 @@ func (pool *Pool) supervisor() {
 		if num_ready_jobs > 0 {
 			select {
 			case pool.job_pipe <-pool.jobs_ready_to_run[num_ready_jobs - 1]:
-				pool.jobs_running++
+				pool.num_jobs_running++
 				pool.jobs_ready_to_run = pool.jobs_ready_to_run[:num_ready_jobs - 1]
 			default:
 			}
 		}
 
-		if pool.jobs_running > 0 {
+		if pool.num_jobs_running > 0 {
 			select {
 			case job := <-pool.done_pipe:
-				pool.jobs_running--
+				pool.num_jobs_running--
 				pool.jobs_completed = append(pool.jobs_completed, job)
+				pool.num_jobs_completed++
 			default:
 			}
 		}
 
 		working := true
-		if len(pool.jobs_ready_to_run) == 0 && pool.jobs_running == 0 {
+		if len(pool.jobs_ready_to_run) == 0 && pool.num_jobs_running == 0 {
 			working = false
 		}
 		select {
@@ -122,6 +137,12 @@ func (pool *Pool) supervisor() {
 			if len(pool.jobs_completed) > 0 {
 				pool.jobs_completed = pool.jobs_completed[1:]
 			}
+		default:
+		}
+
+		pool_stats := stats{pool.num_jobs_submitted, pool.num_jobs_running, pool.num_jobs_completed}
+		select {
+		case pool.stats_pipe <-pool_stats:
 		default:
 		}
 
@@ -176,5 +197,12 @@ func (pool *Pool) WaitForJob() *Job {
 	return nil
 }
 
-// TODO: a Status() method that reads from pool.working_pipe and maybe reports some stats about completed/waiting jobs
+// Status returns a "stats" instance
+func (pool *Pool) Status() stats {
+	if pool.started {
+		return <-pool.stats_pipe
+	}
+	// the pool wasn't started so we return a zeroed structure
+	return stats{}
+}
 
