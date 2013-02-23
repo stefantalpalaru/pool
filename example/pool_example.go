@@ -8,20 +8,20 @@
 package main
 
 import (
-	"pool"
-	"runtime"
+	"github.com/stefantalpalaru/pool"
 	"log"
 	"math"
+	"runtime"
 )
 
 func worker(args ...interface{}) interface{} {
 	/*panic("test panic")*/
 	x := args[0].(float64)
 	j := 0.
-	for i:=1.0; i<10000000; i++ {
+	for i := 1.0; i < 10000000; i++ {
 		j += math.Sqrt(i)
 	}
-	return x * x + j
+	return x*x + j
 }
 
 func main() {
@@ -32,7 +32,8 @@ func main() {
 	mypool.Run()
 	num_jobs := float64(1000)
 
-	for i:=float64(0); i<num_jobs; i++ {
+	// classical usage: add all the jobs then wait untill all are done
+	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(worker, i)
 	}
 	status := mypool.Status()
@@ -40,7 +41,7 @@ func main() {
 	mypool.Wait()
 	sum := float64(0)
 	completed_jobs := mypool.Results()
-	for _, job := range(completed_jobs) {
+	for _, job := range completed_jobs {
 		if job.Result == nil {
 			log.Println("got error:", job.Err)
 		} else {
@@ -49,8 +50,10 @@ func main() {
 	}
 	log.Println(sum)
 
-	// use one result at a time as it becomes available
-	for i:=float64(0); i<num_jobs; i++ {
+	// alternative scenario: use one result at a time as it becomes available
+	mypool = pool.NewPool(cpus)
+	mypool.Run()
+	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(worker, i)
 	}
 	sum = float64(0)
@@ -65,6 +68,7 @@ func main() {
 			sum += job.Result.(float64)
 		}
 	}
+	status = mypool.Status()
+	log.Println(status.Submitted, "submitted jobs,", status.Running, "running,", status.Completed, "completed.")
 	log.Println(sum)
 }
-

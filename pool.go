@@ -16,40 +16,40 @@ import (
 
 // Job holds all the data related to a worker's instance.
 type Job struct {
-	f func(...interface{}) interface{}
-	args []interface{}
+	f      func(...interface{}) interface{}
+	args   []interface{}
 	Result interface{}
-	Err error
+	Err    error
 }
 
 // stats is a structure holding statistical data about the pool
 type stats struct {
 	Submitted int
-	Running int
+	Running   int
 	Completed int
 }
 
 // Pool is the main data structure.
 type Pool struct {
-	started bool
-	num_workers int
-	job_pipe chan *Job
-	done_pipe chan *Job
-	add_pipe chan *Job
-	result_pipe chan *Job
-	jobs_ready_to_run []*Job
+	started            bool
+	num_workers        int
+	job_pipe           chan *Job
+	done_pipe          chan *Job
+	add_pipe           chan *Job
+	result_pipe        chan *Job
+	jobs_ready_to_run  []*Job
 	num_jobs_submitted int
-	num_jobs_running int
+	num_jobs_running   int
 	num_jobs_completed int
-	jobs_completed []*Job
-	interval time.Duration // for sleeping, in ms
-	working_pipe chan bool
-	stats_pipe chan stats
+	jobs_completed     []*Job
+	interval           time.Duration // for sleeping, in ms
+	working_pipe       chan bool
+	stats_pipe         chan stats
 }
 
 // subworker catches any panic while running the job.
 func (pool *Pool) subworker(job *Job) {
-	defer func () {
+	defer func() {
 		if err := recover(); err != nil {
 			log.Println("panic while running job:", err)
 			job.Result = nil
@@ -65,7 +65,7 @@ func (pool *Pool) worker(num int) {
 	for {
 		job := <-pool.job_pipe
 		pool.subworker(job)
-		pool.done_pipe <-job
+		pool.done_pipe <- job
 	}
 }
 
@@ -82,7 +82,7 @@ func NewPool(workers int) (pool *Pool) {
 	pool.working_pipe = make(chan bool)
 	pool.stats_pipe = make(chan stats)
 	pool.interval = 1
-	for i:=0; i<workers; i++ {
+	for i := 0; i < workers; i++ {
 		go pool.worker(i)
 	}
 	return
@@ -102,9 +102,9 @@ func (pool *Pool) supervisor() {
 		num_ready_jobs := len(pool.jobs_ready_to_run)
 		if num_ready_jobs > 0 {
 			select {
-			case pool.job_pipe <-pool.jobs_ready_to_run[num_ready_jobs - 1]:
+			case pool.job_pipe <- pool.jobs_ready_to_run[num_ready_jobs-1]:
 				pool.num_jobs_running++
-				pool.jobs_ready_to_run = pool.jobs_ready_to_run[:num_ready_jobs - 1]
+				pool.jobs_ready_to_run = pool.jobs_ready_to_run[:num_ready_jobs-1]
 			default:
 			}
 		}
@@ -124,7 +124,7 @@ func (pool *Pool) supervisor() {
 			working = false
 		}
 		select {
-		case pool.working_pipe <-working:
+		case pool.working_pipe <- working:
 		default:
 		}
 
@@ -133,7 +133,7 @@ func (pool *Pool) supervisor() {
 			res = pool.jobs_completed[0]
 		}
 		select {
-		case pool.result_pipe <-res:
+		case pool.result_pipe <- res:
 			if len(pool.jobs_completed) > 0 {
 				pool.jobs_completed = pool.jobs_completed[1:]
 			}
@@ -142,7 +142,7 @@ func (pool *Pool) supervisor() {
 
 		pool_stats := stats{pool.num_jobs_submitted, pool.num_jobs_running, pool.num_jobs_completed}
 		select {
-		case pool.stats_pipe <-pool_stats:
+		case pool.stats_pipe <- pool_stats:
 		default:
 		}
 
@@ -160,7 +160,7 @@ func (pool *Pool) Run() {
 // Add creates a Job from the given function and args and
 // adds it to the Pool.
 func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
-	pool.add_pipe <-&Job{f, args, nil, nil}
+	pool.add_pipe <- &Job{f, args, nil, nil}
 }
 
 // Wait blocks until all the jobs in the Pool are done.
@@ -173,7 +173,7 @@ func (pool *Pool) Wait() {
 // Results retrieves the completed jobs.
 func (pool *Pool) Results() (res []*Job) {
 	res = make([]*Job, len(pool.jobs_completed))
-	for i, job := range(pool.jobs_completed) {
+	for i, job := range pool.jobs_completed {
 		res[i] = job
 	}
 	pool.jobs_completed = pool.jobs_completed[0:0]
@@ -205,4 +205,3 @@ func (pool *Pool) Status() stats {
 	// the pool wasn't started so we return a zeroed structure
 	return stats{}
 }
-
