@@ -22,7 +22,7 @@ type Job struct {
 	Err    error
 }
 
-// stats is a structure holding statistical data about the pool
+// stats is a structure holding statistical data about the pool.
 type stats struct {
 	Submitted int
 	Running   int
@@ -90,7 +90,6 @@ func NewPool(workers int) (pool *Pool) {
 
 // supervisor feeds jobs to workers and keeps track of them.
 func (pool *Pool) supervisor() {
-	pool.started = true
 	for {
 		select {
 		case job := <-pool.add_pipe:
@@ -155,6 +154,7 @@ func (pool *Pool) supervisor() {
 // as they become available.
 func (pool *Pool) Run() {
 	go pool.supervisor()
+	pool.started = true
 }
 
 // Add creates a Job from the given function and args and
@@ -197,7 +197,7 @@ func (pool *Pool) WaitForJob() *Job {
 	return nil
 }
 
-// Status returns a "stats" instance
+// Status returns a "stats" instance.
 func (pool *Pool) Status() stats {
 	if pool.started {
 		return <-pool.stats_pipe
