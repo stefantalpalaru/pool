@@ -17,7 +17,7 @@ import (
 // Job holds all the data related to a worker's instance.
 type Job struct {
 	f      func(...interface{}) interface{}
-	args   []interface{}
+	Args   []interface{}
 	Result interface{}
 	Err    error
 }
@@ -56,7 +56,7 @@ func (pool *Pool) subworker(job *Job) {
 			job.Err = fmt.Errorf(err.(string))
 		}
 	}()
-	job.Result = job.f(job.args...)
+	job.Result = job.f(job.Args...)
 }
 
 // worker gets a job from the job_pipe, passes it to a

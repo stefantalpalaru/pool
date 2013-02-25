@@ -1,9 +1,0 @@
-This is a generic worker pool for the Go language. It's useful when you want to limit
-the number of goroutines running in parallel.
-
-Installing (optional):
-    go install github.com/stefantalpalaru/pool
-
-Compile and run the example:
-    go run example/pool_example.go
-
