@@ -14,7 +14,7 @@ import (
 	"runtime"
 )
 
-func worker(args ...interface{}) interface{} {
+func work(args ...interface{}) interface{} {
 	/*panic("test panic")*/
 	x := args[0].(float64)
 	j := 0.
@@ -35,7 +35,7 @@ func main() {
 	mypool.Run()
 
 	for i := float64(0); i < num_jobs; i++ {
-		mypool.Add(worker, i)
+		mypool.Add(work, i)
 	}
 	status := mypool.Status()
 	log.Println("after adding all the jobs:")
@@ -57,7 +57,7 @@ func main() {
 	mypool = pool.NewPool(cpus)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
-		mypool.Add(worker, i)
+		mypool.Add(work, i)
 	}
 	sum = float64(0)
 	for {
@@ -81,7 +81,7 @@ func main() {
 	mypool = pool.NewPool(cpus)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
-		mypool.Add(worker, i)
+		mypool.Add(work, i)
 	}
 	sum = float64(0)
 	status = mypool.Status()

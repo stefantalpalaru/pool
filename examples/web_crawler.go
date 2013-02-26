@@ -20,9 +20,9 @@ type crawlResult struct {
 	err error
 }
 
-// worker uses fetcher to recursively crawl
+// work uses fetcher to recursively crawl
 // pages starting with url, to a maximum of depth.
-func worker(args ...interface{}) interface{} {
+func work(args ...interface{}) interface{} {
 	url := args[0].(string)
 	depth := args[1].(int)
 	fetcher := args[2].(Fetcher)
@@ -50,7 +50,7 @@ func main() {
 	mypool.Run()
 	first_url := "http://golang.org/"
 	seen_urls := []string{first_url}
-	mypool.Add(worker, first_url, 4, fetcher)
+	mypool.Add(work, first_url, 4, fetcher)
 	for {
 		job := mypool.WaitForJob()
 		if job == nil {
@@ -73,7 +73,7 @@ func main() {
 					if url_already_processed(seen_urls, u) {
 						continue
 					}
-					mypool.Add(worker, u, depth-1, fetcher)
+					mypool.Add(work, u, depth-1, fetcher)
 					seen_urls = append(seen_urls, u)
 				}
 			}
