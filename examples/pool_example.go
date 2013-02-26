@@ -27,16 +27,18 @@ func worker(args ...interface{}) interface{} {
 func main() {
 	cpus := runtime.NumCPU()
 	runtime.GOMAXPROCS(cpus)
-
-	mypool := pool.NewPool(cpus)
-	mypool.Run()
 	num_jobs := float64(1000)
 
 	// classical usage: add all the jobs then wait untill all are done
+	log.Println("*** classical usage ***")
+	mypool := pool.NewPool(cpus)
+	mypool.Run()
+
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(worker, i)
 	}
 	status := mypool.Status()
+	log.Println("after adding all the jobs:")
 	log.Println(status.Submitted, "submitted jobs,", status.Running, "running,", status.Completed, "completed.")
 	mypool.Wait()
 	sum := float64(0)
@@ -51,6 +53,7 @@ func main() {
 	log.Println(sum)
 
 	// alternative scenario: use one result at a time as it becomes available
+	log.Println("*** using one result at a time as it becomes available ***")
 	mypool = pool.NewPool(cpus)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
@@ -69,6 +72,34 @@ func main() {
 		}
 	}
 	status = mypool.Status()
+	log.Println("after getting all the results:")
+	log.Println(status.Submitted, "submitted jobs,", status.Running, "running,", status.Completed, "completed.")
+	log.Println(sum)
+
+	// stopping and restarting the pool
+	log.Println("*** stopping and restarting the pool ***")
+	mypool = pool.NewPool(cpus)
+	mypool.Run()
+	for i := float64(0); i < num_jobs; i++ {
+		mypool.Add(worker, i)
+	}
+	sum = float64(0)
+	status = mypool.Status()
+	mypool.Stop()
+	log.Println("after stopping:")
+	log.Println(status.Submitted, "submitted jobs,", status.Running, "running,", status.Completed, "completed.")
+	mypool.Run()
+	mypool.Wait()
+	completed_jobs = mypool.Results()
+	for _, job := range completed_jobs {
+		if job.Result == nil {
+			log.Println("got error:", job.Err)
+		} else {
+			sum += job.Result.(float64)
+		}
+	}
+	status = mypool.Status()
+	log.Println("after restarting and getting all the results:")
 	log.Println(status.Submitted, "submitted jobs,", status.Running, "running,", status.Completed, "completed.")
 	log.Println(sum)
 }

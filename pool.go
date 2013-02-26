@@ -11,6 +11,7 @@ package pool
 import (
 	"fmt"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -31,20 +32,24 @@ type stats struct {
 
 // Pool is the main data structure.
 type Pool struct {
-	started            bool
-	num_workers        int
-	job_pipe           chan *Job
-	done_pipe          chan *Job
-	add_pipe           chan *Job
-	result_pipe        chan *Job
-	jobs_ready_to_run  []*Job
-	num_jobs_submitted int
-	num_jobs_running   int
-	num_jobs_completed int
-	jobs_completed     []*Job
-	interval           time.Duration // for sleeping, in ms
-	working_pipe       chan bool
-	stats_pipe         chan stats
+	started              bool
+	num_workers          int
+	job_pipe             chan *Job
+	done_pipe            chan *Job
+	add_pipe             chan *Job
+	result_pipe          chan *Job
+	jobs_ready_to_run    []*Job
+	num_jobs_submitted   int
+	num_jobs_running     int
+	num_jobs_completed   int
+	jobs_completed       []*Job
+	interval             time.Duration // for sleeping, in ms
+	working_pipe         chan bool
+	stats_pipe           chan stats
+	worker_kill_pipe     chan bool
+	supervisor_kill_pipe chan bool
+	worker_wg            sync.WaitGroup
+	supervisor_wg        sync.WaitGroup
 }
 
 // subworker catches any panic while running the job.
@@ -62,11 +67,18 @@ func (pool *Pool) subworker(job *Job) {
 // worker gets a job from the job_pipe, passes it to a
 // subworker and puts the job in the done_pipe when finished.
 func (pool *Pool) worker(num int) {
+WORKER_LOOP:
 	for {
-		job := <-pool.job_pipe
-		pool.subworker(job)
-		pool.done_pipe <- job
+		select {
+		case <-pool.worker_kill_pipe:
+			// worker suicide
+			break WORKER_LOOP
+		case job := <-pool.job_pipe:
+			pool.subworker(job)
+			pool.done_pipe <- job
+		}
 	}
+	pool.worker_wg.Done()
 }
 
 // NewPool creates a new Pool.
@@ -81,15 +93,15 @@ func NewPool(workers int) (pool *Pool) {
 	pool.jobs_completed = make([]*Job, 0)
 	pool.working_pipe = make(chan bool)
 	pool.stats_pipe = make(chan stats)
+	pool.worker_kill_pipe = make(chan bool)
+	pool.supervisor_kill_pipe = make(chan bool)
 	pool.interval = 1
-	for i := 0; i < workers; i++ {
-		go pool.worker(i)
-	}
 	return
 }
 
 // supervisor feeds jobs to workers and keeps track of them.
 func (pool *Pool) supervisor() {
+SUPERVISOR_LOOP:
 	for {
 		select {
 		case job := <-pool.add_pipe:
@@ -145,16 +157,49 @@ func (pool *Pool) supervisor() {
 		default:
 		}
 
+		// stopping
+		select {
+		case <-pool.supervisor_kill_pipe:
+			break SUPERVISOR_LOOP
+		default:
+		}
+
 		time.Sleep(pool.interval * time.Millisecond)
 	}
+	pool.supervisor_wg.Done()
 }
 
-// Run starts the Pool by launching a supervisor goroutine.
+// Run starts the Pool by launching the workers and a supervisor goroutine.
 // It's OK to start an empty Pool. The jobs will be fed to the workers as soon
 // as they become available.
 func (pool *Pool) Run() {
+	if pool.started {
+		panic("trying to start a pool that's already running")
+	}
+	for i := 0; i < pool.num_workers; i++ {
+		pool.worker_wg.Add(1)
+		go pool.worker(i)
+	}
+	pool.supervisor_wg.Add(1)
 	go pool.supervisor()
 	pool.started = true
+}
+
+// Stop will signal the workers and supervisor to exit and wait for them to actually do that.
+func (pool *Pool) Stop() {
+	if !pool.started {
+		panic("trying to stop a pool that's already stopped")
+	}
+	// stop the workers
+	for i := 0; i < pool.num_workers; i++ {
+		pool.worker_kill_pipe <- true
+	}
+	pool.worker_wg.Wait()
+	// stop the supervisor
+	pool.supervisor_kill_pipe <- true
+	pool.supervisor_wg.Wait()
+	// set the flag
+	pool.started = false
 }
 
 // Add creates a Job from the given function and args and
