@@ -33,6 +33,21 @@ func processResults(t *testing.T, results []*Job) (sum float64) {
 	return
 }
 
+func processResultsWhenAvailable(t *testing.T, mypool *Pool) (sum float64) {
+	for {
+		job := mypool.WaitForJob()
+		if job == nil {
+			break
+		}
+		if job.Result == nil {
+			t.Error("got error:", job.Err)
+		} else {
+			sum += job.Result.(float64)
+		}
+	}
+	return
+}
+
 func TestCorrectness(t *testing.T) {
 	num_jobs := float64(50)
 	runtime.GOMAXPROCS(5) // number of OS threads
@@ -86,4 +101,37 @@ func TestCorrectness(t *testing.T) {
 	if processResults(t, mypool.Results()) != reference {
 		t.Error("10 workers, run before adding")
 	}
+
+	// process results as soon as they are available (add before running)
+	mypool = NewPool(10)
+	for i := float64(0); i < num_jobs; i++ {
+		mypool.Add(work, i)
+	}
+	mypool.Run()
+	if processResultsWhenAvailable(t, mypool) != reference {
+		t.Error("process results as soon as they are available (add before running)")
+	}
+
+	// process results as soon as they are available (run before adding)
+	mypool = NewPool(10)
+	mypool.Run()
+	for i := float64(0); i < num_jobs; i++ {
+		mypool.Add(work, i)
+	}
+	if processResultsWhenAvailable(t, mypool) != reference {
+		t.Error("process results as soon as they are available (add before running)")
+	}
+
+	// stop/start the pool
+	mypool = NewPool(10)
+	mypool.Run()
+	for i := float64(0); i < num_jobs; i++ {
+		mypool.Add(work, i)
+	}
+	mypool.Stop()
+	mypool.Run()
+	if processResultsWhenAvailable(t, mypool) != reference {
+		t.Error("stop/start the pool")
+	}
+
 }
