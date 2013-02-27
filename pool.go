@@ -32,7 +32,8 @@ type stats struct {
 
 // Pool is the main data structure.
 type Pool struct {
-	started              bool
+	workers_started              bool
+	supervisor_started              bool
 	num_workers          int
 	job_pipe             chan *Job
 	done_pipe            chan *Job
@@ -96,6 +97,8 @@ func NewPool(workers int) (pool *Pool) {
 	pool.worker_kill_pipe = make(chan bool)
 	pool.supervisor_kill_pipe = make(chan bool)
 	pool.interval = 1
+	// start the supervisor here so we can accept jobs before a Run call
+	pool.startSupervisor()
 	return
 }
 
@@ -173,21 +176,23 @@ SUPERVISOR_LOOP:
 // It's OK to start an empty Pool. The jobs will be fed to the workers as soon
 // as they become available.
 func (pool *Pool) Run() {
-	if pool.started {
+	if pool.workers_started {
 		panic("trying to start a pool that's already running")
 	}
 	for i := 0; i < pool.num_workers; i++ {
 		pool.worker_wg.Add(1)
 		go pool.worker(i)
 	}
-	pool.supervisor_wg.Add(1)
-	go pool.supervisor()
-	pool.started = true
+	pool.workers_started = true
+	// handle the supervisor
+	if !pool.supervisor_started {
+		pool.startSupervisor()
+	}
 }
 
-// Stop will signal the workers and supervisor to exit and wait for them to actually do that.
+// Stop will signal the workers to exit and wait for them to actually do that.
 func (pool *Pool) Stop() {
-	if !pool.started {
+	if !pool.workers_started {
 		panic("trying to stop a pool that's already stopped")
 	}
 	// stop the workers
@@ -195,11 +200,24 @@ func (pool *Pool) Stop() {
 		pool.worker_kill_pipe <- true
 	}
 	pool.worker_wg.Wait()
-	// stop the supervisor
+	// set the flag
+	pool.workers_started = false
+	// handle the supervisor
+	if pool.supervisor_started {
+		pool.stopSupervisor()
+	}
+}
+
+func (pool *Pool) startSupervisor() {
+	pool.supervisor_wg.Add(1)
+	go pool.supervisor()
+	pool.supervisor_started = true
+}
+
+func (pool *Pool) stopSupervisor() {
 	pool.supervisor_kill_pipe <- true
 	pool.supervisor_wg.Wait()
-	// set the flag
-	pool.started = false
+	pool.supervisor_started = false
 }
 
 // Add creates a Job from the given function and args and
@@ -244,9 +262,9 @@ func (pool *Pool) WaitForJob() *Job {
 
 // Status returns a "stats" instance.
 func (pool *Pool) Status() stats {
-	if pool.started {
+	if pool.supervisor_started {
 		return <-pool.stats_pipe
 	}
-	// the pool wasn't started so we return a zeroed structure
+	// the supervisor wasn't started so we return a zeroed structure
 	return stats{}
 }
