@@ -22,6 +22,17 @@ func work(args ...interface{}) interface{} {
 	return x*x + j
 }
 
+func processResults(t *testing.T, results []*Job) (sum float64) {
+	for _, job := range results {
+		if job.Result == nil {
+			t.Error("got error:", job.Err)
+		} else {
+			sum += job.Result.(float64)
+		}
+	}
+	return
+}
+
 func TestCorrectness(t *testing.T) {
 	num_jobs := float64(50)
 	runtime.GOMAXPROCS(5) // number of OS threads
@@ -33,78 +44,46 @@ func TestCorrectness(t *testing.T) {
 	}
 
 	// 1 worker, add before running
-	sum := float64(0)
 	mypool := NewPool(1)
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
 	}
 	mypool.Run()
 	mypool.Wait()
-	for _, job := range mypool.Results() {
-		if job.Result == nil {
-			t.Error("got error:", job.Err)
-		} else {
-			sum += job.Result.(float64)
-		}
-	}
-	if sum != reference {
+	if processResults(t, mypool.Results()) != reference {
 		t.Error("1 worker, add before running")
 	}
 
 	// 1 worker, run before adding
-	sum = float64(0)
 	mypool = NewPool(1)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
 	}
 	mypool.Wait()
-	for _, job := range mypool.Results() {
-		if job.Result == nil {
-			t.Error("got error:", job.Err)
-		} else {
-			sum += job.Result.(float64)
-		}
-	}
-	if sum != reference {
-		t.Error("1 worker, add before running")
+	if processResults(t, mypool.Results()) != reference {
+		t.Error("1 worker, run before adding")
 	}
 
 	// 10 workers, add before running
-	sum = float64(0)
 	mypool = NewPool(10)
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
 	}
 	mypool.Run()
 	mypool.Wait()
-	for _, job := range mypool.Results() {
-		if job.Result == nil {
-			t.Error("got error:", job.Err)
-		} else {
-			sum += job.Result.(float64)
-		}
-	}
-	if sum != reference {
-		t.Error("1 worker, add before running")
+	if processResults(t, mypool.Results()) != reference {
+		t.Error("10 workers, add before running")
 	}
 
 	// 10 workers, run before adding
-	sum = float64(0)
 	mypool = NewPool(10)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
 	}
 	mypool.Wait()
-	for _, job := range mypool.Results() {
-		if job.Result == nil {
-			t.Error("got error:", job.Err)
-		} else {
-			sum += job.Result.(float64)
-		}
-	}
-	if sum != reference {
-		t.Error("1 worker, add before running")
+	if processResults(t, mypool.Results()) != reference {
+		t.Error("10 workers, run before adding")
 	}
 }
