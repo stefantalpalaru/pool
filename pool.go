@@ -172,7 +172,7 @@ SUPERVISOR_LOOP:
 	pool.supervisor_wg.Done()
 }
 
-// Run starts the Pool by launching the workers and a supervisor goroutine.
+// Run starts the Pool by launching the workers.
 // It's OK to start an empty Pool. The jobs will be fed to the workers as soon
 // as they become available.
 func (pool *Pool) Run() {
@@ -191,6 +191,9 @@ func (pool *Pool) Run() {
 }
 
 // Stop will signal the workers to exit and wait for them to actually do that.
+// It also releases any other resources (e.g.: it stops the supervisor goroutine)
+// so call this method when you're done with the Pool instance to allow the GC
+// to do its job.
 func (pool *Pool) Stop() {
 	if !pool.workers_started {
 		panic("trying to stop a pool that's already stopped")
