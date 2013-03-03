@@ -68,6 +68,7 @@ func TestCorrectness(t *testing.T) {
 	if processResults(t, mypool.Results()) != reference {
 		t.Error("1 worker, add before running")
 	}
+	mypool.Stop()
 
 	// 1 worker, run before adding
 	mypool = NewPool(1)
@@ -79,6 +80,7 @@ func TestCorrectness(t *testing.T) {
 	if processResults(t, mypool.Results()) != reference {
 		t.Error("1 worker, run before adding")
 	}
+	mypool.Stop()
 
 	// 10 workers, add before running
 	mypool = NewPool(10)
@@ -90,6 +92,7 @@ func TestCorrectness(t *testing.T) {
 	if processResults(t, mypool.Results()) != reference {
 		t.Error("10 workers, add before running")
 	}
+	mypool.Stop()
 
 	// 10 workers, run before adding
 	mypool = NewPool(10)
@@ -101,6 +104,7 @@ func TestCorrectness(t *testing.T) {
 	if processResults(t, mypool.Results()) != reference {
 		t.Error("10 workers, run before adding")
 	}
+	mypool.Stop()
 
 	// process results as soon as they are available (add before running)
 	mypool = NewPool(10)
@@ -111,6 +115,7 @@ func TestCorrectness(t *testing.T) {
 	if processResultsWhenAvailable(t, mypool) != reference {
 		t.Error("process results as soon as they are available (add before running)")
 	}
+	mypool.Stop()
 
 	// process results as soon as they are available (run before adding)
 	mypool = NewPool(10)
@@ -121,6 +126,7 @@ func TestCorrectness(t *testing.T) {
 	if processResultsWhenAvailable(t, mypool) != reference {
 		t.Error("process results as soon as they are available (add before running)")
 	}
+	mypool.Stop()
 
 	// stop/start the pool
 	mypool = NewPool(10)
@@ -133,5 +139,5 @@ func TestCorrectness(t *testing.T) {
 	if processResultsWhenAvailable(t, mypool) != reference {
 		t.Error("stop/start the pool")
 	}
-
+	mypool.Stop()
 }
