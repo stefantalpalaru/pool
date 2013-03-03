@@ -79,6 +79,7 @@ func main() {
 			}
 		}
 	}
+	mypool.Stop()
 }
 
 // fakeFetcher is Fetcher that returns canned results.
