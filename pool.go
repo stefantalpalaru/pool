@@ -21,6 +21,7 @@ type Job struct {
 	Args   []interface{}
 	Result interface{}
 	Err    error
+	added chan bool // used by Pool.Add to wait for the supervisor
 }
 
 // stats is a structure holding statistical data about the pool.
@@ -110,6 +111,7 @@ SUPERVISOR_LOOP:
 		case job := <-pool.add_pipe:
 			pool.jobs_ready_to_run = append(pool.jobs_ready_to_run, job)
 			pool.num_jobs_submitted++
+			job.added <- true
 		default:
 		}
 
@@ -226,7 +228,9 @@ func (pool *Pool) stopSupervisor() {
 // Add creates a Job from the given function and args and
 // adds it to the Pool.
 func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
-	pool.add_pipe <- &Job{f, args, nil, nil}
+	job := &Job{f, args, nil, nil, make(chan bool)}
+	pool.add_pipe <-job
+	<-job.added
 }
 
 // Wait blocks until all the jobs in the Pool are done.
