@@ -48,6 +48,12 @@ func processResultsWhenAvailable(t *testing.T, mypool *Pool) (sum float64) {
 	return
 }
 
+func validateResult(t *testing.T, result, reference float64, error_msg string) {
+	if result != reference {
+		t.Error(result, "!=", reference, error_msg)
+	}
+}
+
 func TestCorrectness(t *testing.T) {
 	num_jobs := float64(50)
 	runtime.GOMAXPROCS(5) // number of OS threads
@@ -65,9 +71,7 @@ func TestCorrectness(t *testing.T) {
 	}
 	mypool.Run()
 	mypool.Wait()
-	if processResults(t, mypool.Results()) != reference {
-		t.Error("1 worker, add before running")
-	}
+	validateResult(t, processResults(t, mypool.Results()), reference, "1 worker, add before running")
 	mypool.Stop()
 
 	// 1 worker, run before adding
@@ -77,9 +81,7 @@ func TestCorrectness(t *testing.T) {
 		mypool.Add(work, i)
 	}
 	mypool.Wait()
-	if processResults(t, mypool.Results()) != reference {
-		t.Error("1 worker, run before adding")
-	}
+	validateResult(t, processResults(t, mypool.Results()), reference, "1 worker, run before adding")
 	mypool.Stop()
 
 	// 10 workers, add before running
@@ -89,9 +91,7 @@ func TestCorrectness(t *testing.T) {
 	}
 	mypool.Run()
 	mypool.Wait()
-	if processResults(t, mypool.Results()) != reference {
-		t.Error("10 workers, add before running")
-	}
+	validateResult(t, processResults(t, mypool.Results()), reference, "10 workers, add before running")
 	mypool.Stop()
 
 	// 10 workers, run before adding
@@ -101,9 +101,7 @@ func TestCorrectness(t *testing.T) {
 		mypool.Add(work, i)
 	}
 	mypool.Wait()
-	if processResults(t, mypool.Results()) != reference {
-		t.Error("10 workers, run before adding")
-	}
+	validateResult(t, processResults(t, mypool.Results()), reference, "10 workers, run before adding")
 	mypool.Stop()
 
 	// process results as soon as they are available (add before running)
@@ -112,9 +110,7 @@ func TestCorrectness(t *testing.T) {
 		mypool.Add(work, i)
 	}
 	mypool.Run()
-	if processResultsWhenAvailable(t, mypool) != reference {
-		t.Error("process results as soon as they are available (add before running)")
-	}
+	validateResult(t, processResultsWhenAvailable(t, mypool), reference, "process results as soon as they are available (add before running)")
 	mypool.Stop()
 
 	// process results as soon as they are available (run before adding)
@@ -123,9 +119,7 @@ func TestCorrectness(t *testing.T) {
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
 	}
-	if processResultsWhenAvailable(t, mypool) != reference {
-		t.Error("process results as soon as they are available (add before running)")
-	}
+	validateResult(t, processResultsWhenAvailable(t, mypool), reference, "process results as soon as they are available (add before running)")
 	mypool.Stop()
 
 	// stop/start the pool
@@ -136,8 +130,6 @@ func TestCorrectness(t *testing.T) {
 	}
 	mypool.Stop()
 	mypool.Run()
-	if processResultsWhenAvailable(t, mypool) != reference {
-		t.Error("stop/start the pool")
-	}
+	validateResult(t, processResultsWhenAvailable(t, mypool), reference, "stop/start the pool")
 	mypool.Stop()
 }

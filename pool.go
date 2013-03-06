@@ -9,6 +9,7 @@
 package pool
 
 import (
+	"container/list"
 	"fmt"
 	"log"
 	"sync"
@@ -39,12 +40,12 @@ type Pool struct {
 	job_pipe             chan *Job
 	done_pipe            chan *Job
 	add_pipe             chan *Job
-	result_pipe          chan *Job
-	jobs_ready_to_run    []*Job
+	result_wanted_pipe   chan chan *Job
+	jobs_ready_to_run    *list.List
 	num_jobs_submitted   int
 	num_jobs_running     int
 	num_jobs_completed   int
-	jobs_completed       []*Job
+	jobs_completed       *list.List
 	interval             time.Duration // for sleeping, in ms
 	working_pipe         chan bool
 	stats_pipe           chan stats
@@ -90,9 +91,9 @@ func New(workers int) (pool *Pool) {
 	pool.job_pipe = make(chan *Job)
 	pool.done_pipe = make(chan *Job)
 	pool.add_pipe = make(chan *Job)
-	pool.result_pipe = make(chan *Job)
-	pool.jobs_ready_to_run = make([]*Job, 0)
-	pool.jobs_completed = make([]*Job, 0)
+	pool.result_wanted_pipe = make(chan chan *Job)
+	pool.jobs_ready_to_run = list.New()
+	pool.jobs_completed = list.New()
 	pool.working_pipe = make(chan bool)
 	pool.stats_pipe = make(chan stats)
 	pool.worker_kill_pipe = make(chan bool)
@@ -110,53 +111,53 @@ SUPERVISOR_LOOP:
 		select {
 		// new job
 		case job := <-pool.add_pipe:
-			pool.jobs_ready_to_run = append(pool.jobs_ready_to_run, job)
+			pool.jobs_ready_to_run.PushBack(job)
 			pool.num_jobs_submitted++
 			job.added <- true
 		// stopping
 		case <-pool.supervisor_kill_pipe:
 			break SUPERVISOR_LOOP
+		// wait for job
+		case result_pipe := <-pool.result_wanted_pipe:
+			close_pipe := false
+			job := (*Job)(nil)
+			element := pool.jobs_completed.Front()
+			if element != nil {
+				job = element.Value.(*Job)
+				pool.jobs_completed.Remove(element)
+			} else {
+				if pool.num_jobs_running == 0 && pool.num_jobs_completed == pool.num_jobs_submitted {
+					close_pipe = true
+				}
+			}
+			if close_pipe {
+				close(result_pipe)
+			} else {
+				result_pipe <- job
+			}
+		case job := <-pool.done_pipe:
+			pool.num_jobs_running--
+			pool.jobs_completed.PushBack(job)
+			pool.num_jobs_completed++
 		default:
 		}
 
-		num_ready_jobs := len(pool.jobs_ready_to_run)
-		if num_ready_jobs > 0 {
+		element := pool.jobs_ready_to_run.Front()
+		if element != nil {
 			select {
-			case pool.job_pipe <- pool.jobs_ready_to_run[num_ready_jobs-1]:
+			case pool.job_pipe <- element.Value.(*Job):
 				pool.num_jobs_running++
-				pool.jobs_ready_to_run = pool.jobs_ready_to_run[:num_ready_jobs-1]
-			default:
-			}
-		}
-
-		if pool.num_jobs_running > 0 {
-			select {
-			case job := <-pool.done_pipe:
-				pool.num_jobs_running--
-				pool.jobs_completed = append(pool.jobs_completed, job)
-				pool.num_jobs_completed++
+				pool.jobs_ready_to_run.Remove(element)
 			default:
 			}
 		}
 
 		working := true
-		if len(pool.jobs_ready_to_run) == 0 && pool.num_jobs_running == 0 {
+		if pool.jobs_ready_to_run.Len() == 0 && pool.num_jobs_running == 0 {
 			working = false
 		}
 		select {
 		case pool.working_pipe <- working:
-		default:
-		}
-
-		res := (*Job)(nil)
-		if len(pool.jobs_completed) > 0 {
-			res = pool.jobs_completed[0]
-		}
-		select {
-		case pool.result_pipe <- res:
-			if len(pool.jobs_completed) > 0 {
-				pool.jobs_completed = pool.jobs_completed[1:]
-			}
 		default:
 		}
 
@@ -239,29 +240,37 @@ func (pool *Pool) Wait() {
 
 // Results retrieves the completed jobs.
 func (pool *Pool) Results() (res []*Job) {
-	res = make([]*Job, len(pool.jobs_completed))
-	for i, job := range pool.jobs_completed {
-		res[i] = job
+	res = make([]*Job, pool.jobs_completed.Len())
+	i := 0
+	for e := pool.jobs_completed.Front(); e != nil; e = e.Next() {
+		res[i] = e.Value.(*Job)
+		i++
 	}
-	pool.jobs_completed = pool.jobs_completed[0:0]
+	pool.jobs_completed = list.New()
 	return
 }
 
 // WaitForJob blocks until a completed job is available and returns it.
 // If there are no jobs running, it returns nil.
 func (pool *Pool) WaitForJob() *Job {
+	result_pipe := make(chan *Job)
+	var job *Job
+	var ok bool
 	for {
-		working := <-pool.working_pipe
-		r := <-pool.result_pipe
-		if r == (*Job)(nil) {
-			if !working {
-				break
-			}
+		pool.result_wanted_pipe <- result_pipe
+		job, ok = <-result_pipe
+		if !ok {
+			// no more results available
+			return nil
+		}
+		if job == (*Job)(nil) {
+			// no result available right now but there are jobs running
+			time.Sleep(pool.interval * time.Millisecond)
 		} else {
-			return r
+			break
 		}
 	}
-	return nil
+	return job
 }
 
 // Status returns a "stats" instance.
