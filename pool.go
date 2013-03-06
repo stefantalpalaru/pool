@@ -117,6 +117,11 @@ SUPERVISOR_LOOP:
 		// stopping
 		case <-pool.supervisor_kill_pipe:
 			break SUPERVISOR_LOOP
+		// job completed
+		case job := <-pool.done_pipe:
+			pool.num_jobs_running--
+			pool.jobs_completed.PushBack(job)
+			pool.num_jobs_completed++
 		// wait for job
 		case result_pipe := <-pool.result_wanted_pipe:
 			close_pipe := false
@@ -135,10 +140,6 @@ SUPERVISOR_LOOP:
 			} else {
 				result_pipe <- job
 			}
-		case job := <-pool.done_pipe:
-			pool.num_jobs_running--
-			pool.jobs_completed.PushBack(job)
-			pool.num_jobs_completed++
 		default:
 		}
 
