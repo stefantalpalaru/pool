@@ -31,7 +31,7 @@ func main() {
 
 	// classical usage: add all the jobs then wait untill all are done
 	log.Println("*** classical usage ***")
-	mypool := pool.NewPool(cpus)
+	mypool := pool.New(cpus)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
@@ -54,7 +54,7 @@ func main() {
 
 	// alternative scenario: use one result at a time as it becomes available
 	log.Println("*** using one result at a time as it becomes available ***")
-	mypool = pool.NewPool(cpus)
+	mypool = pool.New(cpus)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
@@ -79,7 +79,7 @@ func main() {
 
 	// stopping and restarting the pool
 	log.Println("*** stopping and restarting the pool ***")
-	mypool = pool.NewPool(cpus)
+	mypool = pool.New(cpus)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)

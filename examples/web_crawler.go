@@ -42,7 +42,7 @@ func url_already_processed(urls []string, u string) bool {
 	return false
 }
 
-var mypool = pool.NewPool(6) // number of workers
+var mypool = pool.New(6) // number of workers
 
 func main() {
 	cpus := runtime.NumCPU()

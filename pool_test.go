@@ -59,7 +59,7 @@ func TestCorrectness(t *testing.T) {
 	}
 
 	// 1 worker, add before running
-	mypool := NewPool(1)
+	mypool := New(1)
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
 	}
@@ -71,7 +71,7 @@ func TestCorrectness(t *testing.T) {
 	mypool.Stop()
 
 	// 1 worker, run before adding
-	mypool = NewPool(1)
+	mypool = New(1)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
@@ -83,7 +83,7 @@ func TestCorrectness(t *testing.T) {
 	mypool.Stop()
 
 	// 10 workers, add before running
-	mypool = NewPool(10)
+	mypool = New(10)
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
 	}
@@ -95,7 +95,7 @@ func TestCorrectness(t *testing.T) {
 	mypool.Stop()
 
 	// 10 workers, run before adding
-	mypool = NewPool(10)
+	mypool = New(10)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
@@ -107,7 +107,7 @@ func TestCorrectness(t *testing.T) {
 	mypool.Stop()
 
 	// process results as soon as they are available (add before running)
-	mypool = NewPool(10)
+	mypool = New(10)
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
 	}
@@ -118,7 +118,7 @@ func TestCorrectness(t *testing.T) {
 	mypool.Stop()
 
 	// process results as soon as they are available (run before adding)
-	mypool = NewPool(10)
+	mypool = New(10)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)
@@ -129,7 +129,7 @@ func TestCorrectness(t *testing.T) {
 	mypool.Stop()
 
 	// stop/start the pool
-	mypool = NewPool(10)
+	mypool = New(10)
 	mypool.Run()
 	for i := float64(0); i < num_jobs; i++ {
 		mypool.Add(work, i)

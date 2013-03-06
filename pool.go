@@ -21,7 +21,7 @@ type Job struct {
 	Args   []interface{}
 	Result interface{}
 	Err    error
-	added chan bool // used by Pool.Add to wait for the supervisor
+	added  chan bool // used by Pool.Add to wait for the supervisor
 }
 
 // stats is a structure holding statistical data about the pool.
@@ -33,8 +33,8 @@ type stats struct {
 
 // Pool is the main data structure.
 type Pool struct {
-	workers_started              bool
-	supervisor_started              bool
+	workers_started      bool
+	supervisor_started   bool
 	num_workers          int
 	job_pipe             chan *Job
 	done_pipe            chan *Job
@@ -83,8 +83,8 @@ WORKER_LOOP:
 	pool.worker_wg.Done()
 }
 
-// NewPool creates a new Pool.
-func NewPool(workers int) (pool *Pool) {
+// New creates a new Pool.
+func New(workers int) (pool *Pool) {
 	pool = new(Pool)
 	pool.num_workers = workers
 	pool.job_pipe = make(chan *Job)
@@ -108,10 +108,14 @@ func (pool *Pool) supervisor() {
 SUPERVISOR_LOOP:
 	for {
 		select {
+		// new job
 		case job := <-pool.add_pipe:
 			pool.jobs_ready_to_run = append(pool.jobs_ready_to_run, job)
 			pool.num_jobs_submitted++
 			job.added <- true
+		// stopping
+		case <-pool.supervisor_kill_pipe:
+			break SUPERVISOR_LOOP
 		default:
 		}
 
@@ -159,13 +163,6 @@ SUPERVISOR_LOOP:
 		pool_stats := stats{pool.num_jobs_submitted, pool.num_jobs_running, pool.num_jobs_completed}
 		select {
 		case pool.stats_pipe <- pool_stats:
-		default:
-		}
-
-		// stopping
-		select {
-		case <-pool.supervisor_kill_pipe:
-			break SUPERVISOR_LOOP
 		default:
 		}
 
@@ -229,7 +226,7 @@ func (pool *Pool) stopSupervisor() {
 // adds it to the Pool.
 func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
 	job := &Job{f, args, nil, nil, make(chan bool)}
-	pool.add_pipe <-job
+	pool.add_pipe <- job
 	<-job.added
 }
 
