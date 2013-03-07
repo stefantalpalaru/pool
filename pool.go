@@ -47,8 +47,8 @@ type Pool struct {
 	num_jobs_completed   int
 	jobs_completed       *list.List
 	interval             time.Duration // for sleeping, in ms
-	working_pipe         chan bool
-	stats_pipe           chan stats
+	working_wanted_pipe  chan chan bool
+	stats_wanted_pipe    chan chan stats
 	worker_kill_pipe     chan bool
 	supervisor_kill_pipe chan bool
 	worker_wg            sync.WaitGroup
@@ -94,8 +94,8 @@ func New(workers int) (pool *Pool) {
 	pool.result_wanted_pipe = make(chan chan *Job)
 	pool.jobs_ready_to_run = list.New()
 	pool.jobs_completed = list.New()
-	pool.working_pipe = make(chan bool)
-	pool.stats_pipe = make(chan stats)
+	pool.working_wanted_pipe = make(chan chan bool)
+	pool.stats_wanted_pipe = make(chan chan stats)
 	pool.worker_kill_pipe = make(chan bool)
 	pool.supervisor_kill_pipe = make(chan bool)
 	pool.interval = 1
@@ -140,6 +140,17 @@ SUPERVISOR_LOOP:
 			} else {
 				result_pipe <- job
 			}
+		// stats
+		case stats_pipe := <-pool.stats_wanted_pipe:
+			pool_stats := stats{pool.num_jobs_submitted, pool.num_jobs_running, pool.num_jobs_completed}
+			stats_pipe <- pool_stats
+		// is the pool working or just lazing on a Sunday afternoon?
+		case working_pipe := <-pool.working_wanted_pipe:
+			working := true
+			if pool.jobs_ready_to_run.Len() == 0 && pool.num_jobs_running == 0 {
+				working = false
+			}
+			working_pipe <- working
 		default:
 		}
 
@@ -151,21 +162,6 @@ SUPERVISOR_LOOP:
 				pool.jobs_ready_to_run.Remove(element)
 			default:
 			}
-		}
-
-		working := true
-		if pool.jobs_ready_to_run.Len() == 0 && pool.num_jobs_running == 0 {
-			working = false
-		}
-		select {
-		case pool.working_pipe <- working:
-		default:
-		}
-
-		pool_stats := stats{pool.num_jobs_submitted, pool.num_jobs_running, pool.num_jobs_completed}
-		select {
-		case pool.stats_pipe <- pool_stats:
-		default:
 		}
 
 		time.Sleep(pool.interval * time.Millisecond)
@@ -234,7 +230,12 @@ func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
 
 // Wait blocks until all the jobs in the Pool are done.
 func (pool *Pool) Wait() {
-	for <-pool.working_pipe {
+	working_pipe := make(chan bool)
+	for {
+		pool.working_wanted_pipe <- working_pipe
+		if !<-working_pipe {
+			break
+		}
 		time.Sleep(pool.interval * time.Millisecond)
 	}
 }
@@ -276,8 +277,10 @@ func (pool *Pool) WaitForJob() *Job {
 
 // Status returns a "stats" instance.
 func (pool *Pool) Status() stats {
+	stats_pipe := make(chan stats)
 	if pool.supervisor_started {
-		return <-pool.stats_pipe
+		pool.stats_wanted_pipe <- stats_pipe
+		return <-stats_pipe
 	}
 	// the supervisor wasn't started so we return a zeroed structure
 	return stats{}
