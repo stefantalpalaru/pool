@@ -37,7 +37,7 @@ type Pool struct {
 	workers_started      bool
 	supervisor_started   bool
 	num_workers          int
-	job_pipe             chan *Job
+	job_wanted_pipe      chan chan *Job
 	done_pipe            chan *Job
 	add_pipe             chan *Job
 	result_wanted_pipe   chan chan *Job
@@ -70,15 +70,21 @@ func (pool *Pool) subworker(job *Job) {
 // worker gets a job from the job_pipe, passes it to a
 // subworker and puts the job in the done_pipe when finished.
 func (pool *Pool) worker(num int) {
+	job_pipe := make(chan *Job)
 WORKER_LOOP:
 	for {
-		select {
-		case <-pool.worker_kill_pipe:
-			// worker suicide
-			break WORKER_LOOP
-		case job := <-pool.job_pipe:
+		pool.job_wanted_pipe <- job_pipe
+		job := <-job_pipe
+		if job == nil {
+			time.Sleep(pool.interval * time.Millisecond)
+		} else {
 			pool.subworker(job)
 			pool.done_pipe <- job
+		}
+		select {
+		case <-pool.worker_kill_pipe:
+			break WORKER_LOOP
+		default:
 		}
 	}
 	pool.worker_wg.Done()
@@ -88,7 +94,7 @@ WORKER_LOOP:
 func New(workers int) (pool *Pool) {
 	pool = new(Pool)
 	pool.num_workers = workers
-	pool.job_pipe = make(chan *Job)
+	pool.job_wanted_pipe = make(chan chan *Job)
 	pool.done_pipe = make(chan *Job)
 	pool.add_pipe = make(chan *Job)
 	pool.result_wanted_pipe = make(chan chan *Job)
@@ -114,9 +120,16 @@ SUPERVISOR_LOOP:
 			pool.jobs_ready_to_run.PushBack(job)
 			pool.num_jobs_submitted++
 			job.added <- true
-		// stopping
-		case <-pool.supervisor_kill_pipe:
-			break SUPERVISOR_LOOP
+		// send jobs to the workers
+		case job_pipe := <-pool.job_wanted_pipe:
+			element := pool.jobs_ready_to_run.Front()
+			var job *Job = nil
+			if element != nil {
+				job = element.Value.(*Job)
+				pool.num_jobs_running++
+				pool.jobs_ready_to_run.Remove(element)
+			}
+			job_pipe <- job
 		// job completed
 		case job := <-pool.done_pipe:
 			pool.num_jobs_running--
@@ -140,10 +153,6 @@ SUPERVISOR_LOOP:
 			} else {
 				result_pipe <- job
 			}
-		// stats
-		case stats_pipe := <-pool.stats_wanted_pipe:
-			pool_stats := stats{pool.num_jobs_submitted, pool.num_jobs_running, pool.num_jobs_completed}
-			stats_pipe <- pool_stats
 		// is the pool working or just lazing on a Sunday afternoon?
 		case working_pipe := <-pool.working_wanted_pipe:
 			working := true
@@ -151,20 +160,14 @@ SUPERVISOR_LOOP:
 				working = false
 			}
 			working_pipe <- working
-		default:
+		// stats
+		case stats_pipe := <-pool.stats_wanted_pipe:
+			pool_stats := stats{pool.num_jobs_submitted, pool.num_jobs_running, pool.num_jobs_completed}
+			stats_pipe <- pool_stats
+		// stopping
+		case <-pool.supervisor_kill_pipe:
+			break SUPERVISOR_LOOP
 		}
-
-		element := pool.jobs_ready_to_run.Front()
-		if element != nil {
-			select {
-			case pool.job_pipe <- element.Value.(*Job):
-				pool.num_jobs_running++
-				pool.jobs_ready_to_run.Remove(element)
-			default:
-			}
-		}
-
-		time.Sleep(pool.interval * time.Millisecond)
 	}
 	pool.supervisor_wg.Done()
 }
