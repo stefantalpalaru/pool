@@ -1,6 +1,6 @@
 This is a generic worker pool for the Go language. It's useful when you want to limit the number of goroutines running in parallel.
 
-Installing (optional):
+Installation:
 ```
 go install github.com/stefantalpalaru/pool
 ```
