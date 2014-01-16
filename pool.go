@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, Stefan Talpalaru <stefan.talpalaru@od-eon.com>, Odeon Consulting Group Pte Ltd <od-eon.com>
+/* Copyright (c) 2013-2014 - Stefan Talpalaru <stefantalpalaru@yahoo.com>
  * All rights reserved. */
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
