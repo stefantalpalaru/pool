@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014 - Stefan Talpalaru <stefantalpalaru@yahoo.com>
+/* Copyright (c) 2013-2018 - Stefan Talpalaru <stefantalpalaru@yahoo.com>
  * All rights reserved. */
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
@@ -15,7 +15,7 @@ import (
 )
 
 func work(args ...interface{}) interface{} {
-	/*panic("test panic")*/
+	// panic("test panic")
 	x := args[0].(float64)
 	j := 0.
 	for i := 1.0; i < 10000000; i++ {
@@ -44,7 +44,7 @@ func main() {
 	completed_jobs := mypool.Results()
 	for _, job := range completed_jobs {
 		if job.Result == nil {
-			log.Println("got error:", job.Err)
+			log.Printf("got error: '%s' from job #%d running on worker #%d\n", job.Err, job.Job_id, job.Worker_id)
 		} else {
 			sum += job.Result.(float64)
 		}

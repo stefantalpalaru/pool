@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2014 - Stefan Talpalaru <stefantalpalaru@yahoo.com>
+/* Copyright (c) 2013-2018 - Stefan Talpalaru <stefantalpalaru@yahoo.com>
  * All rights reserved. */
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
@@ -18,11 +18,13 @@ import (
 
 // Job holds all the data related to a worker's instance.
 type Job struct {
-	F      func(...interface{}) interface{}
-	Args   []interface{}
-	Result interface{}
-	Err    error
-	added  chan bool // used by Pool.Add to wait for the supervisor
+	F         func(...interface{}) interface{}
+	Args      []interface{}
+	Result    interface{}
+	Err       error
+	added     chan bool // used by Pool.Add to wait for the supervisor
+	Worker_id uint
+	Job_id    uint64 // will wrap around on overflow
 }
 
 // stats is a structure holding statistical data about the pool.
@@ -53,6 +55,7 @@ type Pool struct {
 	supervisor_kill_pipe chan bool
 	worker_wg            sync.WaitGroup
 	supervisor_wg        sync.WaitGroup
+	Next_job_id          uint64
 }
 
 // subworker catches any panic while running the job.
@@ -69,7 +72,7 @@ func (pool *Pool) subworker(job *Job) {
 
 // worker gets a job from the job_pipe, passes it to a
 // subworker and puts the job in the done_pipe when finished.
-func (pool *Pool) worker(num int) {
+func (pool *Pool) worker(worker_id uint) {
 	job_pipe := make(chan *Job)
 WORKER_LOOP:
 	for {
@@ -78,6 +81,7 @@ WORKER_LOOP:
 		if job == nil {
 			time.Sleep(pool.interval * time.Millisecond)
 		} else {
+			job.Worker_id = worker_id
 			pool.subworker(job)
 			pool.done_pipe <- job
 		}
@@ -90,7 +94,7 @@ WORKER_LOOP:
 	pool.worker_wg.Done()
 }
 
-// New creates a new Pool.
+// New() creates a new Pool.
 func New(workers int) (pool *Pool) {
 	pool = new(Pool)
 	pool.num_workers = workers
@@ -105,12 +109,13 @@ func New(workers int) (pool *Pool) {
 	pool.worker_kill_pipe = make(chan bool)
 	pool.supervisor_kill_pipe = make(chan bool)
 	pool.interval = 1
+	pool.Next_job_id = 0
 	// start the supervisor here so we can accept jobs before a Run call
 	pool.startSupervisor()
 	return
 }
 
-// supervisor feeds jobs to workers and keeps track of them.
+// the supervisor feeds jobs to workers and keeps track of them.
 func (pool *Pool) supervisor() {
 SUPERVISOR_LOOP:
 	for {
@@ -179,7 +184,7 @@ func (pool *Pool) Run() {
 	if pool.workers_started {
 		panic("trying to start a pool that's already running")
 	}
-	for i := 0; i < pool.num_workers; i++ {
+	for i := uint(0); i < uint(pool.num_workers); i++ {
 		pool.worker_wg.Add(1)
 		go pool.worker(i)
 	}
@@ -226,7 +231,9 @@ func (pool *Pool) stopSupervisor() {
 // Add creates a Job from the given function and args and
 // adds it to the Pool.
 func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
-	job := &Job{f, args, nil, nil, make(chan bool)}
+	job := &Job{f, args, nil, nil, make(chan bool), 0, pool.Next_job_id}
+	// is there any scenario in which jobs might be added in parallel and we should worry about duplicated IDs?
+	pool.Next_job_id++
 	pool.add_pipe <- job
 	<-job.added
 }
