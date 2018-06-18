@@ -1,4 +1,4 @@
-// Exercise: Web Crawler - http://tour.golang.org/#70
+// Exercise: Web Crawler - https://tour.golang.org/concurrency/10
 // modified to use the worker pool
 package main
 
@@ -17,7 +17,7 @@ type Fetcher interface {
 type crawlResult struct {
 	body string
 	urls []string
-	err error
+	err  error
 }
 
 // work uses fetcher to recursively crawl

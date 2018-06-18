@@ -33,6 +33,6 @@ MPL-2.0
 
 - homepage: https://github.com/stefantalpalaru/pool
 
-[1]: http://tour.golang.org/#70
+[1]: https://tour.golang.org/concurrency/10
 [2]: http://godoc.org/github.com/stefantalpalaru/pool
 
