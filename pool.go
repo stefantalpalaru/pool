@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -232,10 +233,18 @@ func (pool *Pool) stopSupervisor() {
 // adds it to the Pool.
 func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
 	job := &Job{f, args, nil, nil, make(chan bool), 0, pool.Next_job_id}
-	// is there any scenario in which jobs might be added in parallel and we should worry about duplicated IDs?
+	// is there any scenario in which jobs might be added in parallel and we should worry about duplicated IDs? Of course
 	pool.Next_job_id++
 	pool.add_pipe <- job
 	<-job.added
+}
+
+func (pool *Pool) getNextJobId() uint64 {
+	next_job_id := atomic.LoadUint64(&pool.Next_job_id)
+	for !atomic.CompareAndSwapUint64(&pool.Next_job_id, next_job_id, next_job_id+1) {
+		next_job_id = atomic.LoadUint64(&pool.Next_job_id)
+	}
+	return next_job_id
 }
 
 // Wait blocks until all the jobs in the Pool are done.

@@ -10,6 +10,7 @@ package pool
 import (
 	"math"
 	"runtime"
+	"sync"
 	"testing"
 )
 
@@ -132,4 +133,33 @@ func TestCorrectness(t *testing.T) {
 	mypool.Run()
 	validateResult(t, processResultsWhenAvailable(t, mypool), reference, "stop/start the pool")
 	mypool.Stop()
+}
+
+func TestGetNextJobId(t *testing.T) {
+	mypool := New(1)
+	runtime.GOMAXPROCS(16)
+	var num_jobs uint64 = 1000000
+	var wg sync.WaitGroup
+
+	wg.Add(10)
+	var jobIds sync.Map
+	for i := 0; i < 10; i++ {
+		go func() {
+			for i := 0; i < int(num_jobs/10); i++ {
+				jobId := mypool.getNextJobId()
+				if _, ok := jobIds.Load(jobId); ok {
+					t.Errorf("duplicated ID!")
+				} else {
+					jobIds.Store(jobId, nil)
+				}
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	if mypool.Next_job_id != num_jobs {
+		t.Errorf("Next_job_id is wrong excepted: %d but: %d", num_jobs, mypool.Next_job_id)
+	}
+
 }
