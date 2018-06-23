@@ -232,9 +232,7 @@ func (pool *Pool) stopSupervisor() {
 // Add creates a Job from the given function and args and
 // adds it to the Pool.
 func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
-	job := &Job{f, args, nil, nil, make(chan bool), 0, pool.Next_job_id}
-	// is there any scenario in which jobs might be added in parallel and we should worry about duplicated IDs? Of course
-	pool.Next_job_id++
+	job := &Job{f, args, nil, nil, make(chan bool), 0, pool.getNextJobId()}
 	pool.add_pipe <- job
 	<-job.added
 }
