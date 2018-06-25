@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"log"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -56,7 +55,8 @@ type Pool struct {
 	supervisor_kill_pipe chan bool
 	worker_wg            sync.WaitGroup
 	supervisor_wg        sync.WaitGroup
-	Next_job_id          uint64
+	next_job_id          uint64
+	next_job_mutex       sync.Mutex
 }
 
 // subworker catches any panic while running the job.
@@ -110,7 +110,7 @@ func New(workers int) (pool *Pool) {
 	pool.worker_kill_pipe = make(chan bool)
 	pool.supervisor_kill_pipe = make(chan bool)
 	pool.interval = 1
-	pool.Next_job_id = 0
+	pool.next_job_id = 0
 	// start the supervisor here so we can accept jobs before a Run call
 	pool.startSupervisor()
 	return
@@ -238,11 +238,11 @@ func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
 }
 
 func (pool *Pool) getNextJobId() uint64 {
-	next_job_id := atomic.LoadUint64(&pool.Next_job_id)
-	for !atomic.CompareAndSwapUint64(&pool.Next_job_id, next_job_id, next_job_id+1) {
-		next_job_id = atomic.LoadUint64(&pool.Next_job_id)
-	}
-	return next_job_id
+	pool.next_job_mutex.Lock()
+	job_id := pool.next_job_id
+	pool.next_job_id++
+	pool.next_job_mutex.Unlock()
+	return job_id
 }
 
 // Wait blocks until all the jobs in the Pool are done.
