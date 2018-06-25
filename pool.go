@@ -56,7 +56,7 @@ type Pool struct {
 	worker_wg            sync.WaitGroup
 	supervisor_wg        sync.WaitGroup
 	next_job_id          uint64
-	next_job_mutex       sync.Mutex
+	next_job_id_mutex    sync.Mutex
 }
 
 // subworker catches any panic while running the job.
@@ -238,10 +238,10 @@ func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
 }
 
 func (pool *Pool) getNextJobId() uint64 {
-	pool.next_job_mutex.Lock()
+	pool.next_job_id_mutex.Lock()
 	job_id := pool.next_job_id
 	pool.next_job_id++
-	pool.next_job_mutex.Unlock()
+	pool.next_job_id_mutex.Unlock()
 	return job_id
 }
 
