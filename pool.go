@@ -237,6 +237,7 @@ func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
 	<-job.added
 }
 
+// job IDs start from 1
 func (pool *Pool) getNextJobId() uint64 {
 	return atomic.AddUint64(&pool.next_job_id, 1)
 }
