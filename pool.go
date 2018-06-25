@@ -55,7 +55,8 @@ type Pool struct {
 	supervisor_kill_pipe chan bool
 	worker_wg            sync.WaitGroup
 	supervisor_wg        sync.WaitGroup
-	Next_job_id          uint64
+	next_job_id          uint64
+	next_job_mutex       sync.Mutex
 }
 
 // subworker catches any panic while running the job.
@@ -109,7 +110,7 @@ func New(workers int) (pool *Pool) {
 	pool.worker_kill_pipe = make(chan bool)
 	pool.supervisor_kill_pipe = make(chan bool)
 	pool.interval = 1
-	pool.Next_job_id = 0
+	pool.next_job_id = 0
 	// start the supervisor here so we can accept jobs before a Run call
 	pool.startSupervisor()
 	return
@@ -231,11 +232,17 @@ func (pool *Pool) stopSupervisor() {
 // Add creates a Job from the given function and args and
 // adds it to the Pool.
 func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
-	job := &Job{f, args, nil, nil, make(chan bool), 0, pool.Next_job_id}
-	// is there any scenario in which jobs might be added in parallel and we should worry about duplicated IDs?
-	pool.Next_job_id++
+	job := &Job{f, args, nil, nil, make(chan bool), 0, pool.getNextJobId()}
 	pool.add_pipe <- job
 	<-job.added
+}
+
+func (pool *Pool) getNextJobId() uint64 {
+	pool.next_job_mutex.Lock()
+	job_id := pool.next_job_id
+	pool.next_job_id++
+	pool.next_job_mutex.Unlock()
+	return job_id
 }
 
 // Wait blocks until all the jobs in the Pool are done.
