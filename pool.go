@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"log"
 	"sync"
-	"time"
 	"sync/atomic"
+	"time"
 )
 
 // Job holds all the data related to a worker's instance.
@@ -238,7 +238,7 @@ func (pool *Pool) Add(f func(...interface{}) interface{}, args ...interface{}) {
 }
 
 func (pool *Pool) getNextJobId() uint64 {
-	return atomic.AddUint64(&pool.next_job_id,1)
+	return atomic.AddUint64(&pool.next_job_id, 1)
 }
 
 // Wait blocks until all the jobs in the Pool are done.
