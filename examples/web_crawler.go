@@ -1,5 +1,8 @@
+// +build ignore
+
 // Exercise: Web Crawler - https://tour.golang.org/concurrency/10
 // modified to use the worker pool
+
 package main
 
 import (

@@ -1,3 +1,5 @@
+// +build ignore
+
 /* Copyright (c) 2013-2018 - Stefan Talpalaru <stefantalpalaru@yahoo.com>
  * All rights reserved. */
 
