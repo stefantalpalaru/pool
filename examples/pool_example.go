@@ -1,6 +1,6 @@
 // +build ignore
 
-/* Copyright (c) 2013-2018 - Stefan Talpalaru <stefantalpalaru@yahoo.com>
+/* Copyright (c) 2013-2018 - Ștefan Talpalaru <stefantalpalaru@yahoo.com>
  * All rights reserved. */
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
